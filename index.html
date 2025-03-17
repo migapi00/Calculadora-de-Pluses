@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Pluses</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            width: 80%;
+            margin: 20px auto;
+        }
+        .day {
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 80px;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .day.saturday { background-color: #f4f4f4; }
+        .day.sunday { background-color: #ddd; }
+        .day.festive { background-color: #ffcccc !important; }
+        .shift {
+            margin-top: 5px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .shift.M { color: green; }
+        .shift.T { color: orange; }
+        .shift.N { color: #cc6600; }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        .results {
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <h1>Calculadora de Pluses</h1>
+    <label for="month">Selecciona el mes: </label>
+    <input type="month" id="month" onchange="generateCalendar()">
+   
+    <div class="calendar" id="calendar"></div>
+    <button onclick="calculatePluses()">Calcular Pluses</button>
+    <button onclick="downloadPDF()">Descargar PDF</button>
+    <div class="results">
+        <h2>Resultados</h2>
+        <p>Plus Horas Nocturnas: <span id="plusNocturnas">0</span> horas</p>
+        <p>Plus Horas Festivas: <span id="plusFestivas">0</span> horas</p>
+        <p>Plus Horas Nocturnas Festivas: <span id="plusNocturnasFestivas">0</span> horas</p>
+    </div>
+    <script>
+        const shifts = ["-", "M", "T", "N"];
+        let schedule = {};
+        let festiveDays = new Set();
+
+
+        function generateCalendar() {
+    const calendar = document.getElementById("calendar");
+    calendar.innerHTML = "";
+    const monthInput = document.getElementById("month").value;
+    if (!monthInput) return;
+    const [year, month] = monthInput.split("-");
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); // 0 (Domingo) a 6 (Sábado)
+
+    schedule = {};
+    festiveDays.clear();
+
+    // Ajustar para que el lunes sea el primer día de la semana
+    const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Si es domingo, empezar en 6 (sábado)
+
+    // Rellenar los días vacíos al principio del calendario
+    for (let i = 0; i < startDay; i++) {
+        const emptyDay = document.createElement("div");
+        emptyDay.classList.add("day");
+        emptyDay.innerHTML = "&nbsp;"; // Espacio en blanco
+        calendar.appendChild(emptyDay);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        const dayOfWeek = date.getDay();
+        const dayElement = document.createElement("div");
+        dayElement.classList.add("day");
+        dayElement.dataset.date = `${year}-${month}-${day}`;
+
+        if (dayOfWeek === 0) dayElement.classList.add("sunday"); // Domingo
+        if (dayOfWeek === 6) dayElement.classList.add("saturday"); // Sábado
+
+        dayElement.innerHTML = `<strong>${day}</strong>`;
+
+        dayElement.addEventListener("click", () => addShift(dayElement));
+        dayElement.addEventListener("contextmenu", (e) => markFestive(e, dayElement));
+
+        calendar.appendChild(dayElement);
+    }
+}
+
+        function addShift(dayElement) {
+            const date = dayElement.dataset.date;
+            let currentShift = schedule[date] || "";
+            let nextShift = shifts[(shifts.indexOf(currentShift) + 1) % shifts.length];
+
+
+            schedule[date] = nextShift;
+            dayElement.innerHTML = `<strong>${date.split("-")[2]}</strong><div class="shift ${nextShift}">${nextShift}</div>`;
+        }
+
+        function markFestive(event, dayElement) {
+            event.preventDefault();
+            const date = dayElement.dataset.date;
+            const [year, month, day] = date.split("-");
+            const dateObj = new Date(year, month - 1, day);
+            const dayOfWeek = dateObj.getDay();
+
+            // Obtener el día anterior
+            const previousDateObj = new Date(dateObj);
+            previousDateObj.setDate(dateObj.getDate() - 1);
+            const previousDate = `${previousDateObj.getFullYear()}-${String(previousDateObj.getMonth() + 1).padStart(2, '0')}-${String(previousDateObj.getDate()).padStart(2, '0')}`;
+
+            // Imprimir en consola el día festivo y el día anterior
+            console.log(`Día festivo seleccionado: ${date}`);
+            console.log(`Día anterior: ${previousDate}`);
+
+            if (dayOfWeek !== 0) { //evita marcar los domingos 
+                if (festiveDays.has(date)) {
+                    festiveDays.delete(date);
+                    dayElement.classList.remove("festive");
+                } else {
+                    festiveDays.add(date);
+                    dayElement.classList.add("festive");
+
+                }
+            }
+        }
+
+        function calculatePluses() {
+            let plusNocturnas = 0;
+            let plusFestivas = 0;
+            let plusNocturnasFestivas = 0;
+
+
+            const dates = Object.keys(schedule).sort();
+            for (let i = 0; i < dates.length; i++) {
+                const date = dates[i];
+                const [year, month, day] = date.split("-");
+                const dateObj = new Date(year, month - 1, day);
+                const dayOfWeek = dateObj.getDay(); // 0 (Domingo) a 6 (Sábado)
+                const shift = schedule[date];
+
+                // Verificar si el día es festivo o es domingo
+                const isFestive = festiveDays.has(date) || dayOfWeek === 0;
+
+                // Verificar si el día es sábado
+                const isSaturday = dayOfWeek === 6;
+
+                // Verificar si el día siguiente es festivo
+                const nextDateObj = new Date(dateObj);
+                nextDateObj.setDate(dateObj.getDate() + 1);
+                const nextDate = `${nextDateObj.getFullYear()}-${String(nextDateObj.getMonth() + 1).padStart(2, '0')}-${String(nextDateObj.getDate()).padStart(2, '0')}`;
+                const isNextFestive = festiveDays.has(nextDate);
+
+                if (isSaturday && shift === "N") {
+                        plusFestivas += 7; // Sumar 7 horas festivas
+                        plusNocturnasFestivas += 6; // Sumar 6 horas nocturnas festivas
+                }
+
+                if (shift === "M") {
+                    if (isFestive || (isFestive && isSaturday)) {
+                        plusFestivas += 8; // Incrementa en 8 si es festivo o festivo y sábado
+                } else if (!isFestive && isSaturday) {
+                        plusFestivas += 1; // Incrementa en 1 si no es festivo pero es sábado
+                    }
+                } 
+                      
+                if (shift === "T") {
+                    if (isFestive || isSaturday || isSaturday && isFestive ) {
+                            plusFestivas += 8;
+                            plusNocturnasFestivas += 1;
+                        } else {
+                            plusNocturnas += 1; // Se ejecuta si shift === "T" y no es festivo ni sábado
+                        }                    
+                }
+
+
+                if (shift === "N") {
+                    if (isFestive && !isSaturday){
+                        // Solo es festivo (no es sábado)
+                        plusNocturnas += 6;
+                        plusFestivas += 1;
+                        plusNocturnasFestivas += 1;
+                     } else if (isFestive && isSaturday || isSaturday) {
+                        plusNocturnasFestivas += 1; 
+                        plusFestivas += 1;
+                     }  else if (!isFestive && isNextFestive) {
+                        // No es festivo hoy, pero mañana es festivo
+                        plusNocturnas += 1;
+                        plusFestivas += 7;
+                        plusNocturnasFestivas += 6;
+                     } else {
+                        plusNocturnas += 7;  
+                     }
+                }
+            }
+            document.getElementById("plusNocturnas").textContent = plusNocturnas;
+            document.getElementById("plusFestivas").textContent = plusFestivas;
+            document.getElementById("plusNocturnasFestivas").textContent = plusNocturnasFestivas;
+        }
+
+        function downloadPDF() {
+            const doc = new jspdf.jsPDF();
+
+            // Obtener la fecha del mes y año seleccionado
+            const monthInput = document.getElementById("month").value;
+            const [year, month] = monthInput.split("-");
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            const monthName = monthNames[parseInt(month) - 1];
+
+            // Título del PDF
+            doc.setFontSize(18);
+            doc.text(`Calendario de Turnos - ${monthName} ${year}`, 10, 20);
+
+            // Obtener el calendario
+            const calendar = document.getElementById("calendar");
+            const days = calendar.querySelectorAll(".day");
+
+            let yOffset = 30; // Posición vertical inicial para el calendario
+            let xOffset = 10; // Posición horizontal inicial
+
+            // Recorrer los días y agregarlos al PDF
+            days.forEach((day, index) => {
+                const dayNumber = day.querySelector("strong")?.textContent || "";
+                const shift = day.querySelector(".shift")?.textContent || "";
+
+                // Agregar el día y el turno al PDF
+                doc.setFontSize(12);
+                doc.text(`${dayNumber}: ${shift}`, xOffset, yOffset);
+
+                // Ajustar la posición para la siguiente celda
+                xOffset += 25; // Espacio entre días
+                if ((index + 1) % 7 === 0) { // Nueva línea cada 7 días
+                    xOffset = 10;
+                    yOffset += 10;
+                }
+            });
+
+            // Agregar los resultados de los pluses
+            yOffset += 20; // Espacio antes de los resultados
+            doc.setFontSize(14);
+            doc.text("Resultados de Pluses", 10, yOffset);
+            yOffset += 10;
+            doc.setFontSize(12);
+            doc.text(`Plus Horas Nocturnas: ${document.getElementById("plusNocturnas").textContent} horas`, 10, yOffset);
+            yOffset += 10;
+            doc.text(`Plus Horas Festivas: ${document.getElementById("plusFestivas").textContent} horas`, 10, yOffset);
+            yOffset += 10;
+            doc.text(`Plus Horas Nocturnas Festivas: ${document.getElementById("plusNocturnasFestivas").textContent} horas`, 10, yOffset);
+
+            // Guardar el PDF
+            doc.save(`calendario_turnos_${monthName}_${year}.pdf`);
+        }
+
+    </script>
+</body>
+</html>
