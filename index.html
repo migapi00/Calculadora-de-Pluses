@@ -125,24 +125,27 @@
             event.preventDefault();
             const date = dayElement.dataset.date;
             const [year, month, day] = date.split("-");
-            const dateObj = new Date(year, month - 1, day);
+            const dateObj = new Date(date);
             const dayOfWeek = dateObj.getDay();
 
             // Obtener el día anterior
-            const previousDateObj = new Date(dateObj);
-            previousDateObj.setDate(dateObj.getDate() - 1);
-            const previousDate = `${previousDateObj.getFullYear()}-${String(previousDateObj.getMonth() + 1).padStart(2, '0')}-${String(previousDateObj.getDate()).padStart(2, '0')}`;
+            const previousDateObj = new Date(dateObj - 1);
+            const previousDate = new Date(previousDateObj).toISOString().slice(0,10);
+
+            const formattedDate = `${year}-${month}-${String(day).padStart(2, '0')}`;
+            console.log('fromatted date ->', formattedDate)
+            // const previousDate = `${previousDateObj.getFullYear()}-${String(previousDateObj.getMonth() + 1).padStart(2, '0')}-${String(previousDateObj.getDate()).padStart(2, '0')}`;
 
             // Imprimir en consola el día festivo y el día anterior
-            console.log(`Día festivo seleccionado: ${date}`);
+            console.log(`Día festivo seleccionado: ${formattedDate}`);
             console.log(`Día anterior: ${previousDate}`);
 
             if (dayOfWeek !== 0) { //evita marcar los domingos 
-                if (festiveDays.has(date)) {
-                    festiveDays.delete(date);
+                if (festiveDays.has(formattedDate)) {
+                    festiveDays.delete(formattedDate);
                     dayElement.classList.remove("festive");
                 } else {
-                    festiveDays.add(date);
+                    festiveDays.add(formattedDate);
                     dayElement.classList.add("festive");
 
                 }
@@ -163,8 +166,10 @@
                 const dayOfWeek = dateObj.getDay(); // 0 (Domingo) a 6 (Sábado)
                 const shift = schedule[date];
 
+                const formattedDate = `${year}-${month}-${String(day).padStart(2, '0')}`;
+
                 // Verificar si el día es festivo o es domingo
-                const isFestive = festiveDays.has(date) || dayOfWeek === 0;
+                const isFestive = festiveDays.has(formattedDate) || dayOfWeek === 0;
 
                 // Verificar si el día es sábado
                 const isSaturday = dayOfWeek === 6;
@@ -197,8 +202,34 @@
                         }                    
                 }
 
-
                 if (shift === "N") {
+                        if (isFestive && !isSaturday) {
+                                if (isNextFestive) {
+                                    // Hoy es festivo y mañana también es festivo
+                                    plusNocturnas += 0;
+                                    plusFestivas += 8;
+                                    plusNocturnasFestivas += 7;
+                                } else {
+                                    // Solo es festivo hoy (no es sábado)
+                                    plusNocturnas += 6;
+                                    plusFestivas += 1;
+                                    plusNocturnasFestivas += 1;
+                                }
+                            } else if (isFestive && isSaturday || isSaturday) {
+                                    plusNocturnasFestivas += 1;
+                                    plusFestivas += 1;
+                                } else if (!isFestive && isNextFestive) {
+                                    // No es festivo hoy, pero mañana es festivo
+                                    plusNocturnas += 1;
+                                    plusFestivas += 7;
+                                    plusNocturnasFestivas += 6;
+                                } else {
+                                    plusNocturnas += 7;
+                                }
+                    }
+
+
+                /*if (shift === "N") {
                     if (isFestive && !isSaturday){
                         // Solo es festivo (no es sábado)
                         plusNocturnas += 6;
@@ -215,7 +246,7 @@
                      } else {
                         plusNocturnas += 7;  
                      }
-                }
+                }*/
             }
             document.getElementById("plusNocturnas").textContent = plusNocturnas;
             document.getElementById("plusFestivas").textContent = plusFestivas;
